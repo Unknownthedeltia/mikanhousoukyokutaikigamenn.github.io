@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>しばらくお待ちください</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+2:wght@100..900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+  html, body {
+    margin: 0; padding: 0;
+    color: white;
+    font-family: "JetBrains Mono","M PLUS 2", sans-serif;
+    height: 100%; overflow: hidden;
+  }
+  #canvas {
+    position: absolute; top: 0; left: 0;
+    z-index: -1; /* 背景のアニメーションがコンテンツの邪魔をしないように背面に配置 */
+  }
+  .center-text {
+    position: absolute;
+    top: 40%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    text-align: center;
+    z-index: 10;
+  }
+  #waiting-message {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    text-align: center;
+    display: none;
+    z-index: 10;
+  }
+  #reason-container {
+    position: absolute;
+    bottom: 40px;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    background: rgba(0,0,0,0.3);
+    color: yellow;
+    font-size: 2rem;
+    z-index: 10;
+    display: block;
+  }
+  #reason-container .inner {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  @keyframes marqueeMove {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+  #reasonText.marquee {
+    display: inline-block;
+    white-space: nowrap;
+    animation: marqueeMove 10s linear infinite;
+  }
+
+  #reasonText {
+    display: inline-block;
+    white-space: nowrap;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-name: marqueeMove;
+    animation-duration: var(--marquee-duration, 20s);
+  }
+
+  #volume-display {
+    position: absolute;
+    top: 10px; right: 10px;
+    font-size: 1.5rem;
+    background: rgba(0,0,0,0.5);
+    padding: 5px 10px;
+    border-radius: 5px;
+    display: none;
+    z-index: 10;
+  }
+  #info-box {
+    position: absolute;
+    width: 420px;
+    height: auto;
+    top: 10px;
+    left: 10px;
+    font-family: "JetBrains Mono", monospace;
+    color: #ccc;
+    background-color: rgba(0,0,0,0.7);
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 15px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    gap: 10px;
+    z-index: 10;
+  }
+
+  button {
+    background: #fff3;
+    color: white;
+    border: 1px solid white;
+    padding: 10px 20px;
+    margin-top: 20px;
+    cursor: pointer;
+    font-size: 1rem;
+    backdrop-filter: blur(4px);
+  }
+  input, select {
+    padding: 8px;
+    font-size: 1rem;
+    margin-top: 10px;
+    width: 250px;
+  }
+
+  #date-time-text {
+    font-size: 1.2rem;
+  }
+
+  #weather-container {
+    display: flex;
+    align-items: center;
+    user-select: none;
+    color: #ccc;
+    width: 100%;
+  }
+  
+  #weather-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 0.8s ease;
+    width: 100%;
+  }
+  #weather-content.fade-out { opacity: 0 !important; }
+  #weather-content.fade-in { opacity: 1 !important; }
+
+  #track-info {
+    font-size: 1rem;
+    color: #ccc;
+    width: 100%;
+  }
+  
+  #progress-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  #progress-bar {
+    height: 100%; width: 0%;
+    background: #00ff00;
+  }
+
+  a { color: #ff0; text-decoration: underline; }
+
+  @keyframes rainbow {
+  0%   { color: red; }
+  20%  { color: orange; }
+  40%  { color: yellow; }
+  60%  { color: green; }
+  80%  { color: blue; }
+  100% { color: violet; }
+}
+.trackNameHighlight {
+  animation: rainbow 4s linear infinite;
+  font-weight: bold;
+}
+
+  #visualizer-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+    pointer-events: none;
+    z-index: 9;
+  }
+  #visualizer {
+    width: 420px;
+    height: 96px;
+    background: #000;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    image-rendering: optimizeSpeed;
+  }
+
+#background-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: -2;
+    background: linear-gradient(45deg, #111, #333);
+    background-size: cover;
+    background-position: center;
+  }
+  #background-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  #background-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+  }
+
+  #bg-controls button {
+    margin-left: 5px;
+    padding: 6px 12px;
+    border: none;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-radius: 4px;
+  }
+  #bg-controls button:hover {
+    background: rgba(255,255,255,0.4);
+  }
+
+
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="background-container"></div>
+
+<div id="main-content">
+<div id="info-box">
+  <div id="date-time-text"></div>
+  <div id="weather-container">
+    <div id="weather-content">
+      <span id="weather-city"></span>
+      <div id="weather-temps"></div>
+    </div>
+  </div>
+  <div id="track-info">曲名: - / 00:00 / 00:00</div>
+  <div id="progress-container"><div id="progress-bar"></div></div>
+  <div id="visualizer-wrap">
+  <canvas id="visualizer" width="420" height="96" aria-hidden="true"></canvas>
+  </div>
+</div>
+
+<div class="center-text">
+  <p>a+b+cキーで解除。音量は矢印キーで調整可能です。</p>
+
+  <label for="patternSelect">待機理由パターン選択：</label>
+  <select id="patternSelect">
+    <option value="preStream">配信前</option>
+    <option value="broadcastNow">配信中(前半)</option>
+    <option value="preparation">後半編に移動準備</option>
+    <option value="broadcastNow2">配信中（後半）</option>
+    <option value="broadcastEnd">配信完了</option>
+    <option value="broadcastIssue">放送事故</option>
+    <option value="broadcastPause">放送休止</option>
+    <option value="broadcastTest">試験放送</option>
+  </select>
+
+  <input type="text" id="reasonInput" placeholder="原因を入力（放送事故の場合）" style="margin-top:10px; width:250px;">
+
+  <br>
+
+  <label for="trackSelect">曲選択：</label>
+  <select id="trackSelect">
+    <option value="Elgar-Salut-damour-2019-AR.mp3">愛の挨拶</option>
+    <option value="abcf.mp3">秘密の配備</option>
+    <option value="Local_Elevator.mp3">Local Elevator</option>
+    <option value="soyokaze.mp3">そよ風の誘惑</option>
+    <option value="Stay-Inside-Me.mp3">Stay Inside Me</option>
+    <option value="We-Magicians-Still-Alive-in-2021.mp3">2021年の魔法使いたち</option>
+    <option value="Joe-Fight.mp3">Joe Fight</option>
+    <option value="MusMus-BGM-007.mp3">Sweet vermouth</option>
+    <option value="2_23_AM_2.mp3">2:23 AM</option>
+  </select>
+
+  <br>
+  <button id="startBtn">音楽再生＋理由表示</button>
+</div>
+
+<div id="waiting-message">We’ll Be Right Back <br> (しばらくお待ち下さい) </div>
+
+<div id="reason-container">
+  <div class="inner"><div id="reasonText"></div></div>
+</div>
+
+<div id="volume-display"></div>
+
+<audio id="bgm" preload="metadata" loop>
+  <source src="Elgar-Salut-damour-2019-AR.mp3" type="audio/mpeg" />
+</audio>
+
+</div>
+
+<div id="background-controls">
+  <button onclick="setBackground('default')">デフォルト背景</button>
+  <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
+  <button onclick="document.getElementById('imageUpload').click()">画像を選択</button>
+
+  <input type="file" id="videoUpload" accept="video/mp4" style="display:none" onchange="handleVideoSelect(event)">
+  <button onclick="document.getElementById('videoUpload').click()">動画を選択</button>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://unpkg.com/wavesurfer.js"></script>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let circles = [];
+for (let i = 0; i < 30; i++) {
+  circles.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    r: Math.random() * 50 + 10,
+    alpha: Math.random(),
+    color: `hsl(${Math.random()*360}, 70%, 50%)`
+  });
+}
+
+circles.forEach(c => {
+  gsap.to(c, { duration: Math.random() * 3 + 2, r: "+=20", alpha: 0.1, repeat: -1, yoyo: true, ease: "sine.inOut" });
+  gsap.to(c, { duration: Math.random() * 5 + 3, x: "+=" + (Math.random()*200 - 100), y: "+=" + (Math.random()*200 - 100), repeat: -1, yoyo: true, ease: "sine.inOut" });
+});
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  circles.forEach(c => {
+    ctx.globalAlpha = c.alpha;
+    ctx.fillStyle = c.color;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  requestAnimationFrame(draw);
+}
+draw();
+
+const trackMap = {
+  "Elgar-Salut-damour-2019-AR.mp3": "愛の挨拶",
+  "abcf.mp3": "秘密の配備",
+  "Local_Elevator.mp3": "Local Elevator",
+  "soyokaze.mp3": "そよ風の誘惑",
+  "Stay-Inside-Me.mp3": "Stay Inside Me",
+  "We-Magicians-Still-Alive-in-2021.mp3": "2021年の魔法使いたち",
+  "Joe-Fight.mp3": "Joe Fight",
+  "MusMus-BGM-007.mp3": "Sweet vermouth",
+  "2_23_AM_2.mp3": "2:23 AM",
+};
+
+const weatherContainer = document.getElementById('weather-container');
+const weatherContent = document.getElementById('weather-content');
+const weatherCity = document.getElementById('weather-city');
+const weatherTemps = document.getElementById('weather-temps');
+const patternSelect = document.getElementById('patternSelect');
+const reasonInput = document.getElementById('reasonInput');
+const audioEl = document.getElementById('bgm');
+const trackInfoEl = document.getElementById('track-info');
+const trackSelect = document.getElementById('trackSelect');
+const progressBar = document.getElementById('progress-bar');
+const reasonTextEl = document.getElementById("reasonText");
+const reasonContainer = document.getElementById('reason-container');
+const waitingMessageEl = document.getElementById("waiting-message");
+const centerTextEl = document.querySelector(".center-text");
+const dateTimeText = document.getElementById('date-time-text');
+
+const apiKey = "1994763b2cd6c50cdfe237a223600304";
+
+const cities = [
+  { name: '釧路', lat: 42.985, lon: 144.382 },
+  { name: '札幌', lat: 43.062, lon: 141.354 },
+  { name: '仙台', lat: 38.268, lon: 140.869 },
+  { name: '新潟', lat: 37.916, lon: 139.036 },
+  { name: '金沢', lat: 36.561, lon: 136.657 },
+  { name: '松本', lat: 36.238, lon: 137.973 },
+  { name: '東京', lat: 35.689, lon: 139.691 },
+  { name: '名古屋', lat: 35.181, lon: 136.906 },
+  { name: '大阪', lat: 34.693, lon: 135.502 },
+  { name: '広島', lat: 34.385, lon: 132.455 },
+  { name: '高知', lat: 33.559, lon: 133.531 },
+  { name: '福岡', lat: 33.590, lon: 130.401 },
+  { name: '鹿児島', lat: 31.596, lon: 130.557 },
+  { name: '那覇', lat: 26.212, lon: 127.679 },
+];
+
+function resetmarqueeMoveation(text) {
+  console.log("resetmarqueeMoveation called with:", text);
+  reasonTextEl.style.animation = 'none';
+  reasonTextEl.style.transform = 'translateX(100%)';
+
+  void reasonTextEl.offsetWidth;
+  void reasonTextEl.classList.add('marquee');
+
+  reasonContainer.style.display = text ? 'block' : 'none';
+
+  const container = reasonContainer.querySelector('.inner');
+  const containerW = container.clientWidth || window.innerWidth;
+  const contentW = reasonTextEl.scrollWidth || (text.length * 12);
+  const px = containerW + contentW;
+  let duration = Math.max(8, Math.min(40, px / 60));
+  reasonTextEl.style.setProperty('--marquee-duration', duration + 's');
+
+  reasonTextEl.innerHTML = text;
+  reasonContainer.style.display = text ? 'block' : 'none';
+
+  setTimeout(() => {
+    reasonTextEl.style.animation = `marqueeMove ${duration}s linear infinite`;
+  }, 50);
+}
+
+async function fetchWeatherForCity(lat, lon) {
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}&lang=ja`);
+    if (!res.ok) throw new Error(`APIエラー: ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (e) {
+    console.error(e);
+    weatherCity.textContent = "天気情報エラー";
+    weatherTemps.innerHTML = `<span style="color:red;">${e.message}</span>`;
+    return null;
+  }
+}
+
+let cityIndex = 0;
+
+async function updateWeather() {
+  if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
+    weatherCity.textContent = "APIキーが未設定です";
+    weatherTemps.innerHTML = `<span>コード内のapiKeyを編集してください</span>`;
+    return;
+  }
+
+  await fadeOut(weatherContent);
+
+  const city = cities[cityIndex];
+  weatherCity.textContent = `${city.name}:`;
+
+  const data = await fetchWeatherForCity(city.lat, city.lon);
+
+  if (data && data.weather && data.weather.length > 0) {
+    const desc = data.weather[0].description || '';
+    const curTemp = typeof data.main.temp !== 'undefined' ? Math.round(data.main.temp) : '-';
+    const weatherText = `${desc} 現在: ${curTemp}°C`;
+    weatherTemps.innerHTML = `<span>${weatherText}</span>`;
+  } else {
+    weatherTemps.innerHTML = `<span>天気データがありません</span>`;
+  }
+
+  await fadeIn(weatherContent);
+
+  cityIndex++;
+  if (cityIndex >= cities.length) cityIndex = 0;
+}
+
+function fadeOut(element) {
+  return new Promise(resolve => {
+    element.classList.add('fade-out');
+    element.classList.remove('fade-in');
+    setTimeout(resolve, 800);
+  });
+}
+function fadeIn(element) {
+  return new Promise(resolve => {
+    element.classList.remove('fade-out');
+    element.classList.add('fade-in');
+    setTimeout(resolve, 800);
+  });
+}
+
+updateWeather();
+setInterval(updateWeather, 7000);
+
+function updateDateTime() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const ss = String(now.getSeconds()).padStart(2,'0');
+  dateTimeText.textContent = `${y}/${m}/${d} ${hh}:${mm}:${ss}`;
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+const volumeDisplay = document.getElementById('volume-display');
+let volume = 0.5;
+audioEl.volume = volume;
+
+function showVolume() {
+  volumeDisplay.textContent = `音量: ${(volume*100).toFixed(0)}%`;
+  volumeDisplay.style.display = "block";
+  clearTimeout(volumeDisplay.hideTimeout);
+  volumeDisplay.hideTimeout = setTimeout(() => {
+    volumeDisplay.style.display = "none";
+  }, 1500);
+}
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp') {
+    volume = Math.min(1, volume + 0.05);
+    audioEl.volume = volume;
+    showVolume();
+  } else if (e.key === 'ArrowDown') {
+    volume = Math.max(0, volume - 0.05);
+    audioEl.volume = volume;
+    showVolume();
+  }
+});
+
+trackSelect.addEventListener('change', () => {
+  const selected = trackSelect.value;
+  audioEl.src = selected;
+  audioEl.load();
+  const name = trackMap[selected] || selected;
+  const cur = formatTime(audioEl.currentTime || 0);
+  const tot = audioEl.duration ? formatTime(audioEl.duration) : '--:--';
+  trackInfoEl.textContent = `曲名: ${name} / ${cur} / ${tot}`;
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  const selectedTrack = trackSelect.value;
+  if (selectedTrack) {
+    audioEl.src = selectedTrack;
+    audioEl.load();
+  }
+  
+  updateReasonText();
+  audioEl.play().catch(() => {});
+
+  centerTextEl.style.display = 'none';
+  waitingMessageEl.style.display = 'block';
+});
+
+audioEl.addEventListener('loadedmetadata', () => {
+  updateReasonText();
+});
+
+audioEl.addEventListener('timeupdate', () => {
+  const current = audioEl.currentTime || 0;
+  const duration = audioEl.duration || 0;
+  const percent = duration ? (current / duration) * 100 : 0;
+  const curStr = formatTime(current);
+  const durStr = duration ? formatTime(duration) : '--:--';
+  const name = trackMap[trackSelect.value] || trackSelect.value || '-';
+  trackInfoEl.textContent = `曲名: ${name} / ${curStr} / ${durStr}`;
+  progressBar.style.width = `${percent}%`;
+});
+
+function startMarquee(text) {
+  const container = reasonContainer.querySelector('.inner');
+  reasonTextEl.style.animation = 'none';
+  reasonTextEl.style.transform = 'translateX(100%)';
+  reasonTextEl.innerHTML = text;
+
+  reasonContainer.style.display = text ? 'block' : 'none';
+
+  void reasonTextEl.offsetWidth;
+
+  const containerW = container.clientWidth || window.innerWidth;
+  const contentW = reasonTextEl.scrollWidth || (text.length * 12);
+  const totalDistance = containerW + contentW;
+
+  let duration = totalDistance / 60;
+  duration = Math.min(Math.max(duration, 8), 40);
+
+  reasonTextEl.style.setProperty('--marquee-duration', duration + 's');
+  reasonTextEl.style.animation = `marqueeMove ${duration}s linear infinite`;
+}
+
+function updateReasonText() {
+  const selectedPattern = patternSelect.value;
+  const reason = reasonInput.value;
+  const trackNameRaw = trackMap[trackSelect.value] || "";
+  const trackName = trackNameRaw || "音楽";
+
+  const trackNameSpan = `<span id="rainbowTrackName">${trackName}</span>`;
+ 
+  const funFacts = [
+    "ここにはランダムで色々流れます。", "この文章は何回目で出ましたか？", "未完都市からの配信をお楽しみください。",
+    "本日の天気はどうでしょうか？", "この配信は未完都市からお届け中です。", "ぜひお便りを送ってくださいね。",
+    "皆さん、配信を楽しんでいますか？", "音楽は心の栄養ですよね。",
+    "未完放送局はあなたのそばでお供します。", "音楽と共に心を癒しましょう。",
+    "【Tips】未完都市はかつてLSCS(Large Scale Community Server)と言う名前で存在してました。", "【質問】猫と犬、どっちが好きですか？",
+    "【TIps】MSCVの正式名称は「Mega Scramble Crossing Village」です。"
+  ];
+  const randomFact = funFacts[Math.floor(Math.random() * funFacts.length)];
+
+  let displayText = "";
+  if(selectedPattern === "preStream") {
+    displayText = `未完放送局に来ていただき誠にありがとうございます。配信開始までしばらくお待ち下さい。前半は17:00~18:00を予定しております。始まるまで${trackNameSpan}が流れます。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "We’ll Be Right Back <br> (しばらくお待ち下さい)";
+  } else if(selectedPattern === "broadcastNow") {
+    displayText = `未完放送局前半の配信中です。お便りは、#イベントのGoogle Formsに送ってください。　現在流れているBGM:${trackNameSpan} Thumbnail Art by りいのん @Rii__non ${randomFact}`;
+    waitingMessageEl.innerHTML = "";
+  } else if(selectedPattern === "preparation") {
+    displayText = `未完放送局の後半の準備中です。後半は21:30~22:30を予定しております。後半に入るまで${trackNameSpan}が流れます。後半開始までしばらくお待ち下さい。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "We’ll Be Right Back <br> (しばらくお待ち下さい)";
+  } else if(selectedPattern === "broadcastNow2") {
+    displayText = `未完放送局後半の配信中です。お便りは、#イベントのGoogle Formsに送ってください。　現在流れているBGM:${trackNameSpan} Thumbnail Art by りいのん @Rii__non ${randomFact}`;
+    waitingMessageEl.innerHTML = "";
+  } else if(selectedPattern === "broadcastEnd") {
+    displayText = `未完ラジオの配信は終了しました。ご視聴ありがとうございました！次回の配信をお楽しみに！ EndingBGM:${trackNameSpan} ${randomFact}`;
+    waitingMessageEl.innerHTML = "Thank you for listening! <br> (ご視聴ありがとうございました！)";
+  } else if(selectedPattern === "broadcastIssue") {
+    displayText = `未完都市のラジオに異常が発生したため、しばらく放送を停止しています。【原因】${reason}  問題が解決するまで${trackNameSpan}が流れます。ご迷惑をかけて誠に申し訳ありません。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "We’ll Be Right Back <br> (しばらくお待ち下さい)";
+  } else if(selectedPattern === "broadcastPause") {
+    displayText = `現在、放送を休止しています。放送が再開するまで${trackNameSpan}が流れます。何かありましたら、<a href="https://x.com/Metalepsis_jp" target="_blank" rel="noopener noreferrer">Twitter:@Metalepsis_jp</a>までご連絡ください。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "放送を休止しています。";
+  } else if(selectedPattern === "broadcastTest") {
+    displayText = `現在、試験放送を行っています。放送が終了するまで${trackNameSpan}が流れます。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "試験放送中です。";
+  }
+
+  displayText = displayText.replace(/<br\s*\/?>/gi, ' ');
+  startMarquee(displayText);
+  animateRainbowText("rainbowTrackName");
+}
+
+function animateRainbowText(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (container.dataset.animated) return;
+  container.dataset.animated = "true";
+
+  const text = container.textContent;
+  container.textContent = "";
+  for (const char of text) {
+    const span = document.createElement("span");
+    span.textContent = char;
+    container.appendChild(span);
+  }
+
+  const spans = container.querySelectorAll("span");
+  spans.forEach((span, i) => {
+    gsap.to(span, {
+      duration: 4,
+      repeat: -1,
+      ease: "linear",
+      delay: i * 0.1,
+      onUpdate: function() {
+        const progress = (gsap.utils.wrap(0, 1, (this.progress() + i * 0.1) % 1));
+        const hue = Math.floor(progress * 360);
+        span.style.color = `hsl(${hue}, 100%, 70%)`;
+        span.style.filter = `drop-shadow(0 0 6px hsl(${hue}, 100%, 80%))`;
+      }
+    });
+  });
+}
+
+reasonTextEl.addEventListener('animationiteration', () => {
+  updateReasonText();
+});
+
+function formatTime(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '--:--';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+(function() {
+  const audioEl = document.getElementById('bgm');
+  const visualizerCanvas = document.getElementById('visualizer');
+  if (!audioEl || !visualizerCanvas) return;
+
+  const ctx = visualizerCanvas.getContext('2d', { alpha: false });
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = new AudioContextClass();
+  const analyser = audioCtx.createAnalyser();
+
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.6;
+
+  let sourceNode;
+  try {
+    sourceNode = audioCtx.createMediaElementSource(audioEl);
+    sourceNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  } catch (e) {
+    console.warn('createMediaElementSource error:', e);
+  }
+
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  const bars = 64;
+  const barGap = 1;
+  const prevHeights = new Array(bars).fill(0);
+
+  let rafId;
+  function drawVisualizer() {
+    rafId = requestAnimationFrame(drawVisualizer);
+    analyser.getByteFrequencyData(dataArray);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+    const w = visualizerCanvas.width;
+    const barWidth = Math.floor((w - (bars - 1) * barGap) / bars);
+    const grad = ctx.createLinearGradient(0, 0, 0, visualizerCanvas.height);
+    grad.addColorStop(0, '#b9ff3b');
+    grad.addColorStop(0.5, '#7bff2b');
+    grad.addColorStop(1, '#2ecc40');
+    ctx.fillStyle = grad;
+
+    for (let i = 0; i < bars; i++) {
+      const idx = Math.floor(Math.pow(i / bars, 1.3) * (bufferLength - 1));
+      const v = dataArray[idx] / 255;
+      const rawH = v * visualizerCanvas.height;
+      const smoothH = prevHeights[i] * 0.7 + rawH * 0.3;
+      prevHeights[i] = smoothH;
+
+      const x = i * (barWidth + barGap);
+      const y = visualizerCanvas.height - smoothH;
+
+      ctx.globalAlpha = 0.28;
+      ctx.fillRect(x, visualizerCanvas.height - prevHeights[i] * 0.4, barWidth, prevHeights[i] * 0.4);
+      ctx.globalAlpha = 1;
+      ctx.fillRect(x, y, barWidth, smoothH);
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x, y, barWidth, Math.max(2, Math.min(8, smoothH * 0.06)));
+      ctx.fillStyle = grad;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function startVisualizerIfNeeded() {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(()=>{});
+    }
+    if (!rafId) drawVisualizer();
+  }
+
+  audioEl.addEventListener('play', startVisualizerIfNeeded);
+  audioEl.addEventListener('pause', () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } });
+  audioEl.addEventListener('ended', () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } });
+})();
+
+   function setBackground(type) {
+    const bgContainer = document.getElementById("background-container");
+    bgContainer.innerHTML = "";
+    bgContainer.style.background = "";
+
+    if (type === "default") {
+      bgContainer.style.background = "linear-gradient(45deg, #111, #333)";
+      bgContainer.style.backgroundSize = "cover";
+      bgContainer.style.backgroundPosition = "center";
+      canvas.style.display = 'block';
+    }
+  }
+
+  function handleImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const bgContainer = document.getElementById("background-container");
+      bgContainer.innerHTML = "";
+      bgContainer.style.background = `url('${e.target.result}') no-repeat center center`;
+      bgContainer.style.backgroundSize = "cover";
+      bgContainer.style.backgroundPosition = "center";
+      canvas.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleVideoSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const videoURL = URL.createObjectURL(file);
+    const bgContainer = document.getElementById("background-container");
+    bgContainer.innerHTML = "";
+    bgContainer.style.background = "";
+
+    const video = document.createElement("video");
+    video.src = videoURL;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    bgContainer.appendChild(video);
+    canvas.style.display = 'none';
+  }
+
+const keysPressed = { a: false, b: false, c: false };
+
+// --- [修正点] キーが押されたときの処理を追加 ---
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === 'a') keysPressed.a = true;
+  if (k === 'b') keysPressed.b = true;
+  if (k === 'c') keysPressed.c = true;
+
+  // 3つのキーがすべて押されたかチェック
+  if (keysPressed.a && keysPressed.b && keysPressed.c) {
+    // UIを元に戻す
+    centerTextEl.style.display = 'block';
+    waitingMessageEl.style.display = 'none';
+    reasonContainer.style.display = 'none';
+
+    // 音楽を停止し、再生位置を最初に戻す
+    audioEl.pause();
+    audioEl.currentTime = 0;
+
+    // キーの状態をリセット
+    keysPressed.a = false;
+    keysPressed.b = false;
+    keysPressed.c = false;
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === 'a') keysPressed.a = false;
+  if (k === 'b') keysPressed.b = false;
+  if (k === 'c') keysPressed.c = false;
+});
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
