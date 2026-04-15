@@ -1,0 +1,2066 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>しばらくお待ちください</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+2:wght@100..900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+  html, body {
+    margin: 0; padding: 0;
+    color: white;
+    font-family: "JetBrains Mono","M PLUS 2", sans-serif;
+    height: 100%; overflow: hidden;
+    background-color: #000; 
+  }
+  
+  /* 第零層：深淵グラデーション（ユーザーが色を変更可能に！） */
+  #base-background {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    background: linear-gradient(135deg, #0a0a0a 0%, #16213e 100%);
+    transition: background 0.8s cubic-bezier(0.16, 1, 0.3, 1); /* オートカラー変更時に美しく遷移させる魔法 */
+  }
+
+  #canvas {
+    position: absolute; top: 0; left: 0;
+    z-index: 1; 
+    display: block;
+  }
+
+  #three-container {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1; 
+    pointer-events: none;
+    display: none;
+  }
+
+  #background-container {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    z-index: 2; 
+    background-size: cover;
+    background-position: center;
+  }
+  #background-container video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  /* 🆕 第三の盾：メディアの暴走を抑え込む「暗幕オーバーレイ」 */
+  #media-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 3; 
+    background: rgba(0, 0, 0, 0.4); 
+    pointer-events: none;
+  }
+
+  /* 🛡️ 第一の盾：中央UI群を包み込む絶対防御シールド */
+  .center-text {
+    position: absolute;
+    top: 40%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    text-align: center;
+    z-index: 10;
+    width: 95%; 
+    max-width: 800px; 
+    background: rgba(10, 15, 30, 0.75);
+    padding: 30px 40px;
+    border-radius: 16px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+  }
+  
+  #waiting-message {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    text-align: center;
+    display: none;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 20px 40px;
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  #reason-container {
+    position: absolute;
+    bottom: 40px;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    background: rgba(0,0,0,0.6); 
+    color: yellow;
+    font-size: 2rem;
+    z-index: 10;
+    display: block;
+    backdrop-filter: blur(4px);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  #reason-container .inner {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  @keyframes marqueeMove {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+  #reasonText.marquee {
+    display: inline-block;
+    white-space: nowrap;
+    animation: marqueeMove 10s linear infinite;
+  }
+
+  #reasonText {
+    display: inline-block;
+    white-space: nowrap;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-name: marqueeMove;
+    animation-duration: var(--marquee-duration, 20s);
+  }
+
+  #volume-osd {
+    position: fixed;
+    bottom: 120px; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 400px;
+    background: rgba(10, 15, 30, 0.85); 
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.2), inset 0 0 10px rgba(0, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 15px 25px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 9999; 
+    opacity: 0;
+    pointer-events: none; 
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(8px);
+  }
+  
+  #volume-osd.visible {
+    opacity: 1;
+    transform: translate(-50%, -10px);
+  }
+
+  .vol-icon {
+    color: #00ffff;
+    font-size: 1.2rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+  }
+
+  .vol-bar-container {
+    flex-grow: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .vol-bar-fill {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #00ffff, #00ffaa);
+    box-shadow: 0 0 10px rgba(0, 255, 170, 0.8);
+    width: 50%; 
+    transition: width 0.15s ease-out;
+  }
+
+  .vol-text {
+    color: #ffffff;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 1.4rem;
+    min-width: 4ch;
+    text-align: right;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  }
+
+  #info-box {
+    position: absolute;
+    width: 420px;
+    height: auto;
+    top: 10px;
+    left: 10px;
+    font-family: "JetBrains Mono", monospace;
+    color: #ccc;
+    background-color: rgba(10, 15, 30, 0.75);
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 15px;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 8px;
+    gap: 10px;
+    z-index: 10;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+  }
+
+  button {
+    background: #fff3;
+    color: white;
+    border: 1px solid white;
+    padding: 10px 20px;
+    margin-top: 20px;
+    cursor: pointer;
+    font-size: 1rem;
+    backdrop-filter: blur(4px);
+    transition: background 0.3s, transform 0.1s;
+    border-radius: 6px;
+  }
+  button:hover {
+    background: rgba(255, 255, 255, 0.4);
+  }
+  button:active {
+    transform: scale(0.98);
+  }
+
+  #clearPlaylistBtn:hover {
+    background: rgba(255, 50, 50, 0.7) !important;
+    box-shadow: 0 0 10px rgba(255, 50, 50, 0.5);
+  }
+
+  input, select {
+    padding: 8px;
+    font-size: 1rem;
+    margin-top: 10px;
+    width: 250px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+  }
+  option {
+    background: #333;
+    color: white;
+  }
+  optgroup {
+    background: #222;
+    color: #00ffff;
+    font-style: normal;
+    font-weight: bold;
+  }
+
+  #date-time-text {
+    font-size: 1.2rem;
+  }
+
+  #weather-container {
+    display: flex;
+    align-items: center;
+    user-select: none;
+    color: #ccc;
+    width: 100%;
+  }
+  
+  #weather-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 0.8s ease;
+    width: 100%;
+  }
+  #weather-content.fade-out { opacity: 0 !important; }
+  #weather-content.fade-in { opacity: 1 !important; }
+
+  #track-info {
+    font-size: 1rem;
+    color: #ccc;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  #progress-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  
+  #progress-bar {
+    height: 100%; width: 0%;
+    background: #00ff00;
+  }
+
+  a { color: #ff0; text-decoration: underline; }
+
+  @keyframes rainbow {
+  0%   { color: red; }
+  20%  { color: orange; }
+  40%  { color: yellow; }
+  60%  { color: green; }
+  80%  { color: blue; }
+  100% { color: violet; }
+}
+.trackNameHighlight {
+  animation: rainbow 4s linear infinite;
+  font-weight: bold;
+}
+
+  #visualizer-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+    pointer-events: none;
+    z-index: 9;
+  }
+  #visualizer {
+    width: 420px;
+    height: 96px;
+    background: transparent;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    image-rendering: optimizeSpeed;
+  }
+
+  /* ***************************************************************
+     🛡️ 第四の盾：ステルス展開式コントロールパネル（完全装甲版）
+     *************************************************************** */
+  #background-controls {
+    position: absolute;
+    top: 20px;
+    right: -280px; 
+    z-index: 100;
+    display: flex;
+    flex-direction: row; 
+    align-items: flex-start;
+    transition: right 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  #background-controls.open {
+    right: 20px;
+  }
+
+  .panel-handle {
+    width: 40px;
+    height: 40px;
+    /* 透けすぎない堅牢な装甲カラー */
+    background: rgba(5, 8, 15, 0.95);
+    border: 1px solid rgba(0, 255, 255, 0.6);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.5rem;
+    backdrop-filter: blur(12px);
+    box-shadow: -2px 0 10px rgba(0, 255, 255, 0.2);
+    margin-right: -1px; 
+  }
+
+  .panel-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    /* ここが透けていた元凶！鉄壁の黒で塗りつぶす */
+    background: rgba(5, 8, 15, 0.98);
+    padding: 15px;
+    border-radius: 0 8px 8px 8px;
+    border: 1px solid rgba(0, 255, 255, 0.6);
+    backdrop-filter: blur(16px);
+    width: 250px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+  }
+
+  .panel-content select, .panel-content button {
+    margin: 0;
+    width: 100%;
+    font-family: inherit;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.8); /* 内部のボタンも黒を強く */
+  }
+  
+  .control-label {
+    color: #00ffff;
+    font-size: 0.85rem;
+    font-weight: bold;
+    margin-bottom: -5px;
+    align-self: flex-start;
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+  }
+
+  .color-picker-wrap {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    align-items: center;
+  }
+  .color-picker-wrap input[type="color"] {
+    width: 50%;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+    margin-top: 5px;
+  }
+  
+  /* ！！！ はみ出し不良少年の更生プログラム ！！！ */
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%; /* 親の幅に絶対服従 */
+    background: transparent;
+    margin-top: 5px;
+    padding: 0; /* グローバルルールの余計なpaddingを無効化 */
+    border: none; /* グローバルルールの余計な枠線を無効化 */
+    box-sizing: border-box; /* 余白を含めて100%に収める絶対魔法 */
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 16px; width: 16px;
+    border-radius: 50%;
+    background: #00ffff;
+    cursor: pointer;
+    margin-top: -6px;
+    box-shadow: 0 0 10px #00ffff;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%; height: 4px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+
+  #playlist-container {
+    width: 90%;
+    max-width: 480px;
+    margin: 15px auto 0;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    text-align: left;
+  }
+  #playlistUI {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.9rem;
+  }
+  #playlistUI li {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #playlistUI li:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  #playlistUI li.playing {
+    color: #00ff00;
+    font-weight: bold;
+    border-left: 3px solid #00ff00;
+    background: rgba(0, 255, 0, 0.1);
+  }
+  #playlistUI li:last-child {
+    border-bottom: none;
+  }
+  #playlistUI li .delete-btn {
+    color: #ff4c4c;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 5px;
+    margin-left: 10px;
+    transition: transform 0.2s, color 0.2s;
+  }
+  #playlistUI li .delete-btn:hover {
+    color: #ff0000;
+    transform: scale(1.3);
+  }
+  .track-name-span {
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .controls-row select, .controls-row button {
+    margin-top: 0;
+  }
+
+  .mode-toggle-box {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.05);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+    flex-wrap: wrap; 
+  }
+
+  .mode-toggle-box input[type="radio"],
+  .mode-toggle-box input[type="checkbox"] {
+    display: none;
+  }
+
+  .mode-label {
+    cursor: pointer;
+    font-weight: bold;
+    color: #6688aa; 
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid transparent;
+    font-size: 1rem;
+    white-space: nowrap; 
+  }
+
+  .mode-label:hover {
+    color: #aaccff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .mode-toggle-box input[type="radio"]:checked + .mode-label {
+    color: #00ffff;
+    background: rgba(0, 255, 255, 0.15);
+    border: 1px solid rgba(0, 255, 255, 0.6);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+  }
+
+  .mode-toggle-box input[type="checkbox"]:checked + .loop-label {
+    color: #ff00ff;
+    background: rgba(255, 0, 255, 0.15);
+    border: 1px solid rgba(255, 0, 255, 0.6);
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+    text-shadow: 0 0 8px rgba(255, 0, 255, 0.8);
+  }
+
+  .mode-divider {
+    width: 2px;
+    height: 30px;
+    background: linear-gradient(to bottom, transparent, rgba(0, 255, 255, 0.5), transparent);
+    border-radius: 1px;
+    margin: 0 5px;
+  }
+
+</style>
+</head>
+<body>
+
+<div id="base-background"></div>
+<canvas id="canvas"></canvas>
+<div id="three-container"></div>
+<div id="background-container"></div>
+<!-- 🛡️ 第三の盾：メディア暗幕オーバーレイ -->
+<div id="media-overlay"></div>
+
+<div id="main-content">
+<div id="info-box">
+  <div id="date-time-text"></div>
+  <div id="weather-container">
+    <div id="weather-content">
+      <span id="weather-city"></span>
+      <div id="weather-temps"></div>
+    </div>
+  </div>
+  <div id="track-info">曲名: - / 00:00 / 00:00</div>
+  <div id="progress-container"><div id="progress-bar"></div></div>
+  <div id="visualizer-wrap">
+  <canvas id="visualizer" width="420" height="96" aria-hidden="true"></canvas>
+  </div>
+</div>
+
+<div class="center-text">
+  <p style="margin-bottom: 15px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">a+b+cキーで解除。音量は矢印キーで調整可能です。</p>
+
+  <div class="controls-row">
+    <div class="mode-toggle-box">
+      <input type="radio" id="modeSingle" name="playMode" value="single" checked>
+      <label class="mode-label" for="modeSingle">🎵 通常(単一)モード</label>
+
+      <input type="radio" id="modePlaylist" name="playMode" value="playlist">
+      <label class="mode-label" for="modePlaylist">💽 プレイリストモード</label>
+
+      <div class="mode-divider"></div>
+
+      <input type="checkbox" id="loopCheck" checked>
+      <label class="mode-label loop-label" for="loopCheck">🔄 ループ</label>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <label for="patternSelect" style="font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">待機理由：</label>
+    <select id="patternSelect" style="width: auto;">
+      <option value="preStream">配信前</option>
+      <option value="broadcastNow">配信中(前半)</option>
+      <option value="preparation">後半編に移動準備</option>
+      <option value="broadcastNow2">配信中（後半）</option>
+      <option value="broadcastEnd">配信完了</option>
+      <option value="broadcastIssue">放送事故</option>
+      <option value="broadcastPause">放送休止</option>
+      <option value="broadcastTest">試験放送</option>
+    </select>
+    <input type="text" id="reasonInput" placeholder="原因を入力（放送事故の場合）" style="margin-top:0; width:200px;">
+  </div>
+
+  <div class="controls-row">
+    <label for="trackSelect" style="font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">既存曲：</label>
+    <select id="trackSelect" style="width: auto;">
+      <option value="Elgar-Salut-damour-2019-AR.mp3">愛の挨拶</option>
+      <option value="abcf.mp3">秘密の配備</option>
+      <option value="Local_Elevator.mp3">Local Elevator</option>
+      <option value="soyokaze.mp3">そよ風の誘惑</option>
+      <option value="Stay-Inside-Me.mp3">Stay Inside Me</option>
+      <option value="We-Magicians-Still-Alive-in-2021.mp3">2021年の魔法使いたち</option>
+      <option value="Joe-Fight.mp3">Joe Fight</option>
+      <option value="MusMus-BGM-007.mp3">Sweet vermouth</option>
+      <option value="2_23_AM_2.mp3">2:23 AM</option>
+    </select>
+    <button id="addToListBtn">リストに追加</button>
+  </div>
+
+  <div class="controls-row" style="margin-top: 5px;">
+    <input type="file" id="bgmUpload" accept="audio/*" multiple style="display:none" onchange="handleBgmUpload(event)">
+    <button onclick="document.getElementById('bgmUpload').click()" style="padding: 6px 12px; font-size: 0.9rem;">ローカルBGMをアップロード (単一＆リスト追加)</button>
+  </div>
+
+  <div id="playlist-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,0.3); padding-bottom: 5px;">
+      <span style="color: #00ffff; font-size: 0.9rem; font-weight: bold;">【プレイリスト】(モード選択時のみ自動遷移)</span>
+      <button id="clearPlaylistBtn" style="padding: 4px 10px; font-size: 0.8rem; margin: 0; background: rgba(255, 50, 50, 0.4); border: 1px solid rgba(255, 50, 50, 0.8); border-radius: 4px; transition: all 0.2s; color: white;">💥 一括抹消</button>
+    </div>
+    <ul id="playlistUI"></ul>
+  </div>
+
+  <button id="startBtn" style="font-size: 1.2rem; font-weight: bold; padding: 12px 30px; margin-top: 30px;">音楽再生＋理由表示を開始</button>
+</div>
+
+<div id="waiting-message">We’ll Be Right Back <br> (しばらくお待ち下さい) </div>
+
+<div id="reason-container">
+  <div class="inner"><div id="reasonText"></div></div>
+</div>
+
+<div id="volume-osd">
+  <div class="vol-icon">VOL</div>
+  <div class="vol-bar-container">
+    <div class="vol-bar-fill"></div>
+  </div>
+  <div class="vol-text">50%</div>
+</div>
+
+<audio id="bgm" preload="metadata">
+  <source src="Elgar-Salut-damour-2019-AR.mp3" type="audio/mpeg" />
+</audio>
+
+</div>
+
+<div id="background-controls">
+  <div class="panel-handle" title="空間・メディア設定">⚙️</div>
+  <div class="panel-content">
+    
+    <!-- 🎨 第二の盾：ベース背景色のカスタマイズ -->
+    <div class="control-label">宇宙の基調色（第零層）</div>
+    <div class="color-picker-wrap">
+      <input type="color" id="baseColor1" value="#0a0a0a" title="グラデーション上部">
+      <input type="color" id="baseColor2" value="#16213e" title="グラデーション下部">
+    </div>
+
+    <div class="control-label" style="margin-top: 10px;">空間ジェネレーター</div>
+    <select id="bgTypeSelect" onchange="handleBackgroundSelection(this.value)">
+      <optgroup label="2D Animation (平面宇宙)">
+        <option value="2d_circles">二次元の揺らぎ (デフォルト)</option>
+        <option value="2d_matrix">マトリックスの雨 (Digital Rain)</option>
+        <option value="2d_network">ニューラルネットワーク (Network)</option>
+        <option value="2d_waves">サイバーオーロラ (Sine Waves)</option>
+      </optgroup>
+      <optgroup label="3D Animation (立体宇宙)">
+        <option value="three_stars">星屑の深淵 (3D Starfield)</option>
+        <option value="three_grid">電脳マトリックス (3D Cyber Grid)</option>
+        <option value="three_shapes">幾何学の夢 (3D Geometric)</option>
+        <option value="three_wormhole">超光速ワームホール (3D Wormhole)</option>
+        <option value="three_sea">量子ゆらぎの海 (3D Quantum Sea)</option>
+        <option value="three_city">無限の電脳都市 (3D Cyber City)</option>
+        <option value="three_dna">生命の樹 (3D Neon DNA)</option>
+        <option value="three_cubes">浮遊する情報体 (3D Data Cubes)</option>
+      </optgroup>
+    </select>
+    
+    <div class="control-label" style="margin-top: 10px;">メディアオーバーライド</div>
+    <input type="file" id="imageUpload" accept="image/*" style="display:none" onchange="handleImageSelect(event)">
+    <button onclick="document.getElementById('imageUpload').click()">画像を顕現させる</button>
+
+    <input type="file" id="videoUpload" accept="video/mp4" style="display:none" onchange="handleVideoSelect(event)">
+    <button onclick="document.getElementById('videoUpload').click()">動画を投影する</button>
+
+    <!-- 🕶️ 第三の盾：メディア暗幕スライダー -->
+    <div class="control-label" style="margin-top: 15px;">メディアの暗幕（視認性確保）</div>
+    <input type="range" id="mediaDimmer" min="0" max="0.95" step="0.05" value="0.4" title="右に動かすほど暗くなります">
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://unpkg.com/wavesurfer.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ==========================================
+// 🎨 神の絵の具（ベース背景色と暗幕の制御） 🎨
+// ==========================================
+const baseColor1 = document.getElementById('baseColor1');
+const baseColor2 = document.getElementById('baseColor2');
+const baseBackground = document.getElementById('base-background');
+const mediaDimmer = document.getElementById('mediaDimmer');
+const mediaOverlay = document.getElementById('media-overlay');
+
+function updateBaseColor() {
+  baseBackground.style.background = `linear-gradient(135deg, ${baseColor1.value} 0%, ${baseColor2.value} 100%)`;
+}
+baseColor1.addEventListener('input', updateBaseColor);
+baseColor2.addEventListener('input', updateBaseColor);
+
+mediaDimmer.addEventListener('input', (e) => {
+  mediaOverlay.style.background = `rgba(0, 0, 0, ${e.target.value})`;
+});
+
+// 🌟 モードごとの「最適テーマカラー」を定義した神の辞典
+const themeColors = {
+  '2d_circles': { c1: '#0a0a0a', c2: '#16213e' },
+  '2d_matrix':  { c1: '#001100', c2: '#003300' },
+  '2d_network': { c1: '#000511', c2: '#001a33' },
+  '2d_waves':   { c1: '#0a001a', c2: '#220033' },
+  'three_stars':{ c1: '#000000', c2: '#050510' },
+  'three_grid': { c1: '#050015', c2: '#1a0033' },
+  'three_shapes':{ c1: '#111111', c2: '#2a2a2a' },
+  'three_wormhole':{ c1: '#001122', c2: '#003344' },
+  'three_sea':  { c1: '#020005', c2: '#220011' },
+  'three_city': { c1: '#000000', c2: '#001515' },
+  'three_dna':  { c1: '#050011', c2: '#1a0022' },
+  'three_cubes':{ c1: '#050510', c2: '#002222' },
+  // 画像や動画が設定された場合は、主役を引き立てるため背景を完全な漆黒に沈める
+  'media':      { c1: '#000000', c2: '#000000' } 
+};
+
+// 選択された次元に応じて、ベースカラーを自動的に上書きする魔法
+function applyThemeColors(mode) {
+  const colors = themeColors[mode] || themeColors['2d_circles'];
+  baseColor1.value = colors.c1;
+  baseColor2.value = colors.c2;
+  updateBaseColor();
+}
+
+
+// ==========================================
+// 🚀 進化した二次元空間（2D Canvas）管理システム 🚀
+// ==========================================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let is2DActive = true;
+let animId2D = null;
+let current2DMode = 'circles';
+
+let twoData = {};
+
+function init2DUniverse(mode = 'circles') {
+  current2DMode = mode;
+  canvas.width = window.innerWidth || document.documentElement.clientWidth || 800;
+  canvas.height = window.innerHeight || document.documentElement.clientHeight || 600;
+  
+  if (animId2D) {
+    cancelAnimationFrame(animId2D);
+    animId2D = null;
+  }
+  
+  if (twoData.circles) {
+    twoData.circles.forEach(c => gsap.killTweensOf(c));
+  }
+  twoData = {};
+
+  if (mode === 'circles') {
+    twoData.circles = [];
+    for (let i = 0; i < 30; i++) {
+      twoData.circles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 50 + 10,
+        alpha: Math.random(),
+        color: `hsl(${Math.random()*360}, 70%, 50%)`
+      });
+    }
+    twoData.circles.forEach(c => {
+      gsap.to(c, { duration: Math.random() * 3 + 2, r: "+=20", alpha: 0.1, repeat: -1, yoyo: true, ease: "sine.inOut" });
+      gsap.to(c, { duration: Math.random() * 5 + 3, x: "+=" + (Math.random()*200 - 100), y: "+=" + (Math.random()*200 - 100), repeat: -1, yoyo: true, ease: "sine.inOut" });
+    });
+  } 
+  else if (mode === 'matrix') {
+    const fontSize = 18;
+    const columns = Math.floor(canvas.width / fontSize) + 1;
+    twoData.drops = [];
+    for(let i=0; i<columns; i++) {
+      twoData.drops[i] = (Math.random() * -100); 
+    }
+    twoData.fontSize = fontSize;
+  }
+  else if (mode === 'network') {
+    twoData.nodes = [];
+    const numNodes = Math.floor((canvas.width * canvas.height) / 15000); 
+    for(let i=0; i<numNodes; i++) {
+      twoData.nodes.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: (Math.random() - 0.5) * 1.5,
+        r: Math.random() * 2 + 1
+      });
+    }
+  }
+  else if (mode === 'waves') {
+    twoData.time = 0;
+  }
+}
+
+function draw2D() {
+  if (!is2DActive) return; 
+  
+  if (current2DMode === 'circles') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    twoData.circles.forEach(c => {
+      ctx.globalAlpha = c.alpha;
+      ctx.fillStyle = c.color;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  } 
+  else if (current2DMode === 'matrix') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#0f0';
+    ctx.font = `bold ${twoData.fontSize}px "JetBrains Mono", monospace`;
+    
+    for(let i=0; i<twoData.drops.length; i++) {
+      const text = Math.random() > 0.5 ? '0' : '1';
+      const x = i * twoData.fontSize;
+      const y = twoData.drops[i] * twoData.fontSize;
+      
+      if (Math.random() > 0.9) {
+          ctx.fillStyle = '#fff';
+      } else {
+          ctx.fillStyle = '#0f0';
+      }
+      
+      ctx.fillText(text, x, y);
+      
+      if(y > canvas.height && Math.random() > 0.975) {
+        twoData.drops[i] = 0;
+      }
+      twoData.drops[i] += 0.8; 
+    }
+  }
+  else if (current2DMode === 'network') {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ffff';
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+    ctx.lineWidth = 0.8;
+
+    for(let i=0; i<twoData.nodes.length; i++) {
+      let n = twoData.nodes[i];
+      n.x += n.vx;
+      n.y += n.vy;
+      
+      if(n.x < 0 || n.x > canvas.width) n.vx *= -1;
+      if(n.y < 0 || n.y > canvas.height) n.vy *= -1;
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+      ctx.fill();
+
+      for(let j=i+1; j<twoData.nodes.length; j++) {
+        let n2 = twoData.nodes[j];
+        let dx = n.x - n2.x;
+        let dy = n.y - n2.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        
+        if(dist < 120) {
+          ctx.globalAlpha = 1 - (dist / 120);
+          ctx.beginPath();
+          ctx.moveTo(n.x, n.y);
+          ctx.lineTo(n2.x, n2.y);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  else if (current2DMode === 'waves') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    twoData.time += 0.02;
+    
+    for(let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+      
+      for(let x = 0; x <= canvas.width; x += 20) {
+        let y = Math.sin(x * 0.005 + twoData.time + i) * 80 + 
+                Math.cos(x * 0.01 - twoData.time * 1.5 + i * 2) * 40;
+        ctx.lineTo(x, canvas.height / 2 + y);
+      }
+      
+      ctx.strokeStyle = `hsla(${180 + i * 30}, 100%, 60%, 0.6)`;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+  }
+
+  animId2D = requestAnimationFrame(draw2D);
+}
+
+// ==========================================
+// プレイリスト及びメタデータの絶対的管理
+// ==========================================
+const trackMap = {
+  "Elgar-Salut-damour-2019-AR.mp3": "愛の挨拶",
+  "abcf.mp3": "秘密の配備",
+  "Local_Elevator.mp3": "Local Elevator",
+  "soyokaze.mp3": "そよ風の誘惑",
+  "Stay-Inside-Me.mp3": "Stay Inside Me",
+  "We-Magicians-Still-Alive-in-2021.mp3": "2021年の魔法使いたち",
+  "Joe-Fight.mp3": "Joe Fight",
+  "MusMus-BGM-007.mp3": "Sweet vermouth",
+  "2_23_AM_2.mp3": "2:23 AM",
+};
+
+let playlist = [];
+let currentPlaylistIndex = 0;
+
+function updatePlaylistUI() {
+  const ul = document.getElementById('playlistUI');
+  ul.innerHTML = '';
+  playlist.forEach((track, index) => {
+    const li = document.createElement('li');
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'track-name-span';
+    nameSpan.textContent = `${index + 1}. ${track.name}`;
+    
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.title = 'この曲をプレイリストから抹消する';
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      removeTrackFromPlaylist(index);
+    };
+
+    li.appendChild(nameSpan);
+    li.appendChild(delBtn);
+
+    if (index === currentPlaylistIndex) {
+      li.classList.add('playing');
+    }
+    li.onclick = () => {
+      document.querySelector('input[name="playMode"][value="playlist"]').checked = true;
+      currentPlaylistIndex = index;
+      playCurrentTrack();
+    };
+    ul.appendChild(li);
+  });
+}
+
+function removeTrackFromPlaylist(index) {
+  if (index === currentPlaylistIndex) {
+    playlist.splice(index, 1);
+    if (playlist.length === 0) {
+      if(getPlayMode() === 'playlist') {
+        audioEl.pause();
+        audioEl.src = "";
+        updateReasonText();
+      }
+      currentPlaylistIndex = 0;
+      updatePlaylistUI();
+    } else {
+      if (currentPlaylistIndex >= playlist.length) {
+        currentPlaylistIndex = 0;
+      }
+      if(getPlayMode() === 'playlist') playCurrentTrack();
+    }
+  } else {
+    playlist.splice(index, 1);
+    if (index < currentPlaylistIndex) {
+      currentPlaylistIndex--;
+    }
+    updatePlaylistUI();
+  }
+}
+
+document.getElementById('clearPlaylistBtn').addEventListener('click', () => {
+  playlist = [];
+  currentPlaylistIndex = 0;
+  updatePlaylistUI();
+  if(getPlayMode() === 'playlist') {
+    audioEl.pause();
+    audioEl.src = "";
+    updateReasonText();
+  }
+});
+
+function addTrackToPlaylist(src, name) {
+  playlist.push({ src, name });
+  updatePlaylistUI();
+}
+
+document.getElementById('addToListBtn').addEventListener('click', () => {
+  const selected = trackSelect.value;
+  const name = trackMap[selected] || selected;
+  addTrackToPlaylist(selected, name);
+});
+
+function handleBgmUpload(event) {
+  const files = event.target.files;
+  let lastUrl = null;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const url = URL.createObjectURL(file);
+    lastUrl = url;
+    const cleanName = file.name.replace(/\.[^/.]+$/, "");
+    
+    trackMap[url] = cleanName; 
+    addTrackToPlaylist(url, cleanName); 
+    
+    const opt = document.createElement('option');
+    opt.value = url;
+    opt.textContent = `(ﾛｰｶﾙ) ${cleanName}`;
+    trackSelect.appendChild(opt);
+  }
+  event.target.value = '';
+  
+  if (lastUrl && getPlayMode() === 'single') {
+    trackSelect.value = lastUrl;
+  }
+}
+
+function playCurrentTrack() {
+  if (playlist.length === 0) return;
+  const track = playlist[currentPlaylistIndex];
+  audioEl.src = track.src;
+  audioEl.load();
+  audioEl.play().catch(e => console.error("再生の魔術が失敗しました:", e));
+  
+  updateReasonText();
+  updatePlaylistUI();
+}
+
+function getPlayMode() {
+  return document.querySelector('input[name="playMode"]:checked').value;
+}
+
+function getIsLoop() {
+  return document.getElementById('loopCheck').checked;
+}
+
+function getCurrentTrackName() {
+  const mode = getPlayMode();
+  if (mode === 'single') {
+    return trackMap[trackSelect.value] || trackSelect.value || '-';
+  } else {
+    if (playlist.length > 0 && playlist[currentPlaylistIndex]) {
+      return playlist[currentPlaylistIndex].name;
+    } else {
+      return '-';
+    }
+  }
+}
+
+const weatherContainer = document.getElementById('weather-container');
+const weatherContent = document.getElementById('weather-content');
+const weatherCity = document.getElementById('weather-city');
+const weatherTemps = document.getElementById('weather-temps');
+const patternSelect = document.getElementById('patternSelect');
+const reasonInput = document.getElementById('reasonInput');
+const audioEl = document.getElementById('bgm');
+const trackInfoEl = document.getElementById('track-info');
+const trackSelect = document.getElementById('trackSelect');
+const progressBar = document.getElementById('progress-bar');
+const reasonTextEl = document.getElementById("reasonText");
+const reasonContainer = document.getElementById('reason-container');
+const waitingMessageEl = document.getElementById("waiting-message");
+const centerTextEl = document.querySelector(".center-text");
+const dateTimeText = document.getElementById('date-time-text');
+
+const apiKey = "1994763b2cd6c50cdfe237a223600304";
+
+const cities = [
+  { name: '釧路', lat: 42.985, lon: 144.382 },
+  { name: '札幌', lat: 43.062, lon: 141.354 },
+  { name: '仙台', lat: 38.268, lon: 140.869 },
+  { name: '新潟', lat: 37.916, lon: 139.036 },
+  { name: '金沢', lat: 36.561, lon: 136.657 },
+  { name: '松本', lat: 36.238, lon: 137.973 },
+  { name: '東京', lat: 35.689, lon: 139.691 },
+  { name: '名古屋', lat: 35.181, lon: 136.906 },
+  { name: '大阪', lat: 34.693, lon: 135.502 },
+  { name: '広島', lat: 34.385, lon: 132.455 },
+  { name: '高知', lat: 33.559, lon: 133.531 },
+  { name: '福岡', lat: 33.590, lon: 130.401 },
+  { name: '鹿児島', lat: 31.596, lon: 130.557 },
+  { name: '那覇', lat: 26.212, lon: 127.679 },
+];
+
+async function fetchWeatherForCity(lat, lon) {
+  try {
+    const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}&lang=ja`);
+    if (!res.ok) throw new Error(`APIエラー: ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (e) {
+    console.warn("API取得に失敗したため、モックデータを使用します:", e);
+    const mockWeathers = ['晴れ', '曇りがち', '小雨', '曇り', '快晴'];
+    const randomWeather = mockWeathers[Math.floor(Math.random() * mockWeathers.length)];
+    const randomTemp = Math.floor(Math.random() * 15) + 10; 
+    return {
+      weather: [{ description: randomWeather }],
+      main: { temp: randomTemp }
+    };
+  }
+}
+
+let cityIndex = 0;
+async function updateWeather() {
+  if (!apiKey || apiKey === "YOUR_API_KEY_HERE") {
+    weatherCity.textContent = "APIキーが未設定です";
+    weatherTemps.innerHTML = `<span>コード内のapiKeyを編集してください</span>`;
+    return;
+  }
+  await fadeOut(weatherContent);
+  const city = cities[cityIndex];
+  weatherCity.textContent = `${city.name}:`;
+
+  const data = await fetchWeatherForCity(city.lat, city.lon);
+  if (data && data.weather && data.weather.length > 0) {
+    const desc = data.weather[0].description || '';
+    const curTemp = typeof data.main.temp !== 'undefined' ? Math.round(data.main.temp) : '-';
+    weatherTemps.innerHTML = `<span>${desc} 現在: ${curTemp}°C</span>`;
+  } else {
+    weatherTemps.innerHTML = `<span>天気データがありません</span>`;
+  }
+  await fadeIn(weatherContent);
+  cityIndex++;
+  if (cityIndex >= cities.length) cityIndex = 0;
+}
+
+function fadeOut(element) {
+  return new Promise(resolve => {
+    element.classList.add('fade-out');
+    element.classList.remove('fade-in');
+    setTimeout(resolve, 800);
+  });
+}
+function fadeIn(element) {
+  return new Promise(resolve => {
+    element.classList.remove('fade-out');
+    element.classList.add('fade-in');
+    setTimeout(resolve, 800);
+  });
+}
+
+updateWeather();
+setInterval(updateWeather, 7000);
+
+function updateDateTime() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const ss = String(now.getSeconds()).padStart(2,'0');
+  dateTimeText.textContent = `${y}/${m}/${d} ${hh}:${mm}:${ss}`;
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+let volume = 0.5;
+audioEl.volume = volume;
+
+const volumeOsd = document.getElementById('volume-osd');
+const volBarFill = document.querySelector('.vol-bar-fill');
+const volText = document.querySelector('.vol-text');
+
+function showVolume() {
+  const volPercent = Math.round(volume * 100);
+  volBarFill.style.width = `${volPercent}%`;
+  volText.textContent = `${volPercent}%`;
+  
+  volumeOsd.classList.add('visible');
+  
+  clearTimeout(volumeOsd.hideTimeout);
+  volumeOsd.hideTimeout = setTimeout(() => {
+    volumeOsd.classList.remove('visible');
+  }, 2000);
+}
+
+audioEl.addEventListener('ended', () => {
+  const mode = getPlayMode();
+  const isLoop = getIsLoop();
+
+  if (mode === 'single') {
+    if (isLoop) {
+      audioEl.currentTime = 0;
+      audioEl.play().catch(()=>{});
+    }
+  } else {
+    if (playlist.length > 0) {
+      currentPlaylistIndex++;
+      if (currentPlaylistIndex >= playlist.length) {
+        if (isLoop) {
+          currentPlaylistIndex = 0; 
+          playCurrentTrack();
+        } else {
+          currentPlaylistIndex = playlist.length - 1;
+        }
+      } else {
+        playCurrentTrack();
+      }
+    }
+  }
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  const mode = getPlayMode();
+  
+  if (mode === 'single') {
+    const selected = trackSelect.value;
+    if (selected) {
+      audioEl.src = selected;
+      audioEl.load();
+      audioEl.play().catch(e => console.error(e));
+      updateReasonText();
+    }
+  } else {
+    if (playlist.length === 0) {
+      const selected = trackSelect.value;
+      if (selected) {
+        const name = trackMap[selected] || selected;
+        addTrackToPlaylist(selected, name);
+      }
+    }
+    playCurrentTrack();
+  }
+  
+  centerTextEl.style.display = 'none';
+  waitingMessageEl.style.display = 'block';
+});
+
+audioEl.addEventListener('loadedmetadata', () => {
+  updateReasonText();
+});
+
+audioEl.addEventListener('timeupdate', () => {
+  const current = audioEl.currentTime || 0;
+  const duration = audioEl.duration || 0;
+  const percent = duration ? (current / duration) * 100 : 0;
+  const curStr = formatTime(current);
+  const durStr = duration ? formatTime(duration) : '--:--';
+  
+  const name = getCurrentTrackName();
+  
+  trackInfoEl.textContent = `曲名: ${name} / ${curStr} / ${durStr}`;
+  progressBar.style.width = `${percent}%`;
+});
+
+function formatTime(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '--:--';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function startMarquee(text) {
+  const container = reasonContainer.querySelector('.inner');
+  reasonTextEl.style.animation = 'none';
+  reasonTextEl.style.transform = 'translateX(100%)';
+  reasonTextEl.innerHTML = text;
+
+  reasonContainer.style.display = text ? 'block' : 'none';
+
+  void reasonTextEl.offsetWidth;
+
+  const containerW = container.clientWidth || window.innerWidth;
+  const contentW = reasonTextEl.scrollWidth || (text.length * 12);
+  const totalDistance = containerW + contentW;
+
+  let duration = totalDistance / 60;
+  duration = Math.min(Math.max(duration, 8), 40);
+
+  reasonTextEl.style.setProperty('--marquee-duration', duration + 's');
+  reasonTextEl.style.animation = `marqueeMove ${duration}s linear infinite`;
+}
+
+function updateReasonText() {
+  const selectedPattern = patternSelect.value;
+  const reason = reasonInput.value;
+  
+  const trackName = getCurrentTrackName();
+  const trackNameSpan = `<span id="rainbowTrackName">${trackName}</span>`;
+ 
+  const funFacts = [
+    "ここにはランダムで色々流れます。", "この文章は何回目で出ましたか？", "未完都市からの配信をお楽しみください。",
+    "本日の天気はどうでしょうか？", "この配信は未完都市からお届け中です。", "ぜひお便りを送ってくださいね。",
+    "皆さん、配信を楽しんでいますか？", "音楽は心の栄養ですよね。",
+    "未完放送局はあなたのそばでお供します。", "音楽と共に心を癒しましょう。",
+    "【Tips】未完都市はかつてLSCS(Large Scale Community Server)と言う名前で存在してました。", "【質問】猫と犬、どっちが好きですか？",
+    "【TIps】MSCVの正式名称は「Mega Scramble Crossing Village」です。"
+  ];
+  const randomFact = funFacts[Math.floor(Math.random() * funFacts.length)];
+
+  let displayText = "";
+  if(selectedPattern === "preStream") {
+    displayText = `未完放送局に来ていただき誠にありがとうございます。配信開始までしばらくお待ち下さい。前半は17:00~18:00を予定しております。始まるまで${trackNameSpan}が流れます。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "We’ll Be Right Back <br> (しばらくお待ち下さい)";
+  } else if(selectedPattern === "broadcastNow") {
+    displayText = `未完放送局前半の配信中です。お便りは、#イベントのGoogle Formsに送ってください。　現在流れているBGM:${trackNameSpan} Thumbnail Art by りいのん @Rii__non ${randomFact}`;
+    waitingMessageEl.innerHTML = "";
+  } else if(selectedPattern === "preparation") {
+    displayText = `未完放送局の後半の準備中です。後半は21:30~22:30を予定しております。後半に入るまで${trackNameSpan}が流れます。後半開始までしばらくお待ち下さい。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "We’ll Be Right Back <br> (しばらくお待ち下さい)";
+  } else if(selectedPattern === "broadcastNow2") {
+    displayText = `未完放送局後半の配信中です。お便りは、#イベントのGoogle Formsに送ってください。　現在流れているBGM:${trackNameSpan} Thumbnail Art by りいのん @Rii__non ${randomFact}`;
+    waitingMessageEl.innerHTML = "";
+  } else if(selectedPattern === "broadcastEnd") {
+    displayText = `未完ラジオの配信は終了しました。ご視聴ありがとうございました！次回の配信をお楽しみに！ EndingBGM:${trackNameSpan} ${randomFact}`;
+    waitingMessageEl.innerHTML = "Thank you for listening! <br> (ご視聴ありがとうございました！)";
+  } else if(selectedPattern === "broadcastIssue") {
+    displayText = `未完都市のラジオに異常が発生したため、しばらく放送を停止しています。【原因】${reason}  問題が解決するまで${trackNameSpan}が流れます。ご迷惑をかけて誠に申し訳ありません。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "We’ll Be Right Back <br> (しばらくお待ち下さい)";
+  } else if(selectedPattern === "broadcastPause") {
+    displayText = `現在、放送を休止しています。放送が再開するまで${trackNameSpan}が流れます。何かありましたら、<a href="https://x.com/Metalepsis_jp" target="_blank" rel="noopener noreferrer">Twitter:@Metalepsis_jp</a>までご連絡ください。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "放送を休止しています。";
+  } else if(selectedPattern === "broadcastTest") {
+    displayText = `現在、試験放送を行っています。放送が終了するまで${trackNameSpan}が流れます。 ${randomFact}`;
+    waitingMessageEl.innerHTML = "試験放送中です。";
+  }
+
+  displayText = displayText.replace(/<br\s*\/?>/gi, ' ');
+  startMarquee(displayText);
+  animateRainbowText("rainbowTrackName");
+}
+
+function animateRainbowText(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  if (container.dataset.animated) return;
+  container.dataset.animated = "true";
+
+  const text = container.textContent;
+  container.textContent = "";
+  for (const char of text) {
+    const span = document.createElement("span");
+    span.textContent = char;
+    container.appendChild(span);
+  }
+
+  const spans = container.querySelectorAll("span");
+  spans.forEach((span, i) => {
+    gsap.to(span, {
+      duration: 4,
+      repeat: -1,
+      ease: "linear",
+      delay: i * 0.1,
+      onUpdate: function() {
+        const progress = (gsap.utils.wrap(0, 1, (this.progress() + i * 0.1) % 1));
+        const hue = Math.floor(progress * 360);
+        span.style.color = `hsl(${hue}, 100%, 70%)`;
+        span.style.filter = `drop-shadow(0 0 6px hsl(${hue}, 100%, 80%))`;
+      }
+    });
+  });
+}
+
+reasonTextEl.addEventListener('animationiteration', () => {
+  updateReasonText();
+});
+
+(function() {
+  const audioEl = document.getElementById('bgm');
+  const visualizerCanvas = document.getElementById('visualizer');
+  if (!audioEl || !visualizerCanvas) return;
+
+  const ctx = visualizerCanvas.getContext('2d', { alpha: true });
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  const audioCtx = new AudioContextClass();
+  const analyser = audioCtx.createAnalyser();
+
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.6;
+
+  let sourceNode;
+  try {
+    sourceNode = audioCtx.createMediaElementSource(audioEl);
+    sourceNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  } catch (e) {
+    console.warn('createMediaElementSource error:', e);
+  }
+
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+  const bars = 64;
+  const barGap = 1;
+  const prevHeights = new Array(bars).fill(0);
+
+  let rafId;
+  function drawVisualizer() {
+    rafId = requestAnimationFrame(drawVisualizer);
+    analyser.getByteFrequencyData(dataArray);
+    ctx.clearRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
+
+    const w = visualizerCanvas.width;
+    const barWidth = Math.floor((w - (bars - 1) * barGap) / bars);
+    const grad = ctx.createLinearGradient(0, 0, 0, visualizerCanvas.height);
+    grad.addColorStop(0, '#b9ff3b');
+    grad.addColorStop(0.5, '#7bff2b');
+    grad.addColorStop(1, '#2ecc40');
+
+    for (let i = 0; i < bars; i++) {
+      const idx = Math.floor(Math.pow(i / bars, 1.3) * (bufferLength - 1));
+      const v = dataArray[idx] / 255;
+      const rawH = v * visualizerCanvas.height;
+      const smoothH = prevHeights[i] * 0.7 + rawH * 0.3;
+      prevHeights[i] = smoothH;
+
+      const x = i * (barWidth + barGap);
+      const y = visualizerCanvas.height - smoothH;
+
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, visualizerCanvas.height - prevHeights[i] * 0.4, barWidth, prevHeights[i] * 0.4);
+      ctx.globalAlpha = 1;
+      ctx.fillRect(x, y, barWidth, smoothH);
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x, y, barWidth, Math.max(2, Math.min(8, smoothH * 0.06)));
+    }
+  }
+
+  function startVisualizerIfNeeded() {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(()=>{});
+    }
+    if (!rafId) drawVisualizer();
+  }
+
+  audioEl.addEventListener('play', startVisualizerIfNeeded);
+  audioEl.addEventListener('pause', () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } });
+  audioEl.addEventListener('ended', () => { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } });
+})();
+
+
+let threeRenderer, threeScene, threeCamera, threeAnimId;
+let currentThreeMode = null; 
+let threeObjects = {}; 
+
+function initThree() {
+  const container = document.getElementById('three-container');
+  threeRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  threeRenderer.setSize(window.innerWidth, window.innerHeight);
+  threeRenderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(threeRenderer.domElement);
+
+  threeScene = new THREE.Scene();
+  
+  threeCamera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+  
+  window.addEventListener('resize', () => {
+    if (!threeCamera || !threeRenderer) return;
+    threeCamera.aspect = window.innerWidth / window.innerHeight;
+    threeCamera.updateProjectionMatrix();
+    threeRenderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+function buildStarfield() {
+  currentThreeMode = 'stars';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x000000, 0.001);
+
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = 3000;
+  const posArray = new Float32Array(starCount * 3);
+
+  for(let i=0; i < starCount * 3; i++) {
+    posArray[i] = (Math.random() - 0.5) * 1000; 
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+  
+  const starMat = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 1.5,
+    transparent: true,
+    opacity: 0.8
+  });
+
+  const starMesh = new THREE.Points(starGeo, starMat);
+  threeScene.add(starMesh);
+  threeObjects.stars = starMesh;
+  
+  threeCamera.position.set(0, 0, 400);
+  threeCamera.lookAt(0,0,0);
+}
+
+function buildCyberGrid() {
+  currentThreeMode = 'grid';
+  threeScene.clear();
+  
+  threeScene.background = new THREE.Color(0x050015);
+  threeScene.fog = new THREE.FogExp2(0x050015, 0.025);
+
+  const gridGroup = new THREE.Group();
+
+  const gridHelper = new THREE.GridHelper(200, 100, 0x00ffff, 0xff00ff);
+  gridHelper.position.y = -10;
+  gridGroup.add(gridHelper);
+
+  const topGrid = new THREE.GridHelper(200, 100, 0x00ffff, 0xff00ff);
+  topGrid.position.y = 20;
+  gridGroup.add(topGrid);
+
+  threeScene.add(gridGroup);
+  threeObjects.grid = gridGroup;
+
+  threeCamera.position.set(0, 0, 50);
+  threeCamera.lookAt(0, 0, -100);
+}
+
+function buildGeometricDream() {
+  currentThreeMode = 'shapes';
+  threeScene.clear();
+  threeScene.background = new THREE.Color(0x111111);
+  threeScene.fog = new THREE.FogExp2(0x111111, 0.015);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+  threeScene.add(ambientLight);
+
+  const dirLight1 = new THREE.DirectionalLight(0xff00aa, 1.5);
+  dirLight1.position.set(10, 20, 10);
+  threeScene.add(dirLight1);
+
+  const dirLight2 = new THREE.DirectionalLight(0x00aaff, 1.5);
+  dirLight2.position.set(-10, -20, 10);
+  threeScene.add(dirLight2);
+
+  const group = new THREE.Group();
+
+  const mat1 = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.2 });
+  const icosa = new THREE.Mesh(new THREE.IcosahedronGeometry(8, 0), mat1);
+  icosa.position.set(-15, 0, -20);
+  group.add(icosa);
+
+  const mat2 = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.1, wireframe: true });
+  const torusKnot = new THREE.Mesh(new THREE.TorusKnotGeometry(6, 1.5, 100, 16), mat2);
+  torusKnot.position.set(15, 5, -30);
+  group.add(torusKnot);
+
+  const mat3 = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.5 });
+  const octa = new THREE.Mesh(new THREE.OctahedronGeometry(6, 0), mat3);
+  octa.position.set(0, -10, -10);
+  group.add(octa);
+
+  threeScene.add(group);
+  threeObjects.shapesGroup = group;
+  threeObjects.shapeItems = [icosa, torusKnot, octa];
+
+  threeCamera.position.set(0, 0, 40);
+  threeCamera.lookAt(0,0,0);
+}
+
+function buildWormhole() {
+  currentThreeMode = 'wormhole';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x000000, 0.005);
+
+  const geo = new THREE.BufferGeometry();
+  const count = 2000;
+  const pos = new Float32Array(count * 3);
+  for(let i=0; i<count; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const radius = 15 + Math.random() * 5; 
+    const z = (Math.random() - 0.5) * 400; 
+    pos[i*3] = Math.cos(theta) * radius;
+    pos[i*3+1] = Math.sin(theta) * radius;
+    pos[i*3+2] = z;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  
+  const mat = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.8, transparent: true, opacity: 0.8 });
+  const mesh = new THREE.Points(geo, mat);
+  threeScene.add(mesh);
+  threeObjects.wormhole = mesh;
+  
+  threeCamera.position.set(0, 0, 200);
+  threeCamera.lookAt(0, 0, 0);
+}
+
+function buildQuantumSea() {
+  currentThreeMode = 'sea';
+  threeScene.clear();
+  threeScene.background = new THREE.Color(0x020005);
+  threeScene.fog = new THREE.FogExp2(0x020005, 0.02);
+
+  const geo = new THREE.PlaneGeometry(150, 150, 50, 50);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
+  const mesh = new THREE.Mesh(geo, mat);
+  
+  mesh.rotation.x = -Math.PI / 2 + 0.1; 
+  mesh.position.y = -10;
+  threeScene.add(mesh);
+  
+  threeObjects.sea = mesh;
+  threeObjects.seaTime = 0; 
+
+  threeCamera.position.set(0, 5, 40);
+  threeCamera.lookAt(0, -10, 0);
+}
+
+function buildCyberCity() {
+  currentThreeMode = 'city';
+  threeScene.clear();
+  threeScene.background = new THREE.Color(0x000000);
+  threeScene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+  const group = new THREE.Group();
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
+  
+  for(let i=0; i<300; i++) {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.x = (Math.random() - 0.5) * 200;
+    mesh.position.z = (Math.random() - 0.5) * 200;
+    
+    const h = Math.random() * 20 + 5;
+    mesh.scale.set(5, h, 5);
+    mesh.position.y = h / 2 - 10;
+    
+    group.add(mesh);
+  }
+  
+  threeScene.add(group);
+  threeObjects.city = group;
+
+  threeCamera.position.set(0, 10, 80);
+  threeCamera.lookAt(0, 10, 0);
+}
+
+function buildNeonDNA() {
+  currentThreeMode = 'dna';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+  const group = new THREE.Group();
+  const count = 50;
+  
+  const mat1 = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+  const mat2 = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+  const matLine = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
+  
+  const sphereGeo = new THREE.SphereGeometry(0.5, 16, 16);
+  const cylGeo = new THREE.CylinderGeometry(0.1, 0.1, 8, 8);
+
+  for(let i=0; i<count; i++) {
+    const y = (i - count/2) * 1.5;
+    const angle = i * 0.4;
+    
+    const x1 = Math.cos(angle) * 5;
+    const z1 = Math.sin(angle) * 5;
+    const x2 = Math.cos(angle + Math.PI) * 5;
+    const z2 = Math.sin(angle + Math.PI) * 5;
+    
+    const s1 = new THREE.Mesh(sphereGeo, mat1);
+    s1.position.set(x1, y, z1);
+    group.add(s1);
+    
+    const s2 = new THREE.Mesh(sphereGeo, mat2);
+    s2.position.set(x2, y, z2);
+    group.add(s2);
+    
+    const line = new THREE.Mesh(cylGeo, matLine);
+    line.position.set(0, y, 0);
+    line.rotation.y = -angle; 
+    line.rotation.x = Math.PI / 2;
+    line.lookAt(x1, y, z1);
+    line.rotateX(Math.PI/2);
+    group.add(line);
+  }
+  
+  threeScene.add(group);
+  threeObjects.dna = group;
+
+  threeCamera.position.set(0, 0, 50);
+  threeCamera.lookAt(0, 0, 0);
+}
+
+function buildFloatingCubes() {
+  currentThreeMode = 'cubes';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x050510, 0.015);
+  
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  threeScene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xff00aa, 1);
+  dirLight.position.set(10, 20, 10);
+  threeScene.add(dirLight);
+
+  const group = new THREE.Group();
+  threeObjects.cubeItems = [];
+  
+  const geo = new THREE.BoxGeometry(2, 2, 2);
+  const mat = new THREE.MeshStandardMaterial({ 
+    color: 0x00ffcc, 
+    metalness: 0.8, 
+    roughness: 0.2,
+    transparent: true,
+    opacity: 0.7
+  });
+  
+  for(let i=0; i<100; i++) {
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(
+      (Math.random() - 0.5) * 80,
+      (Math.random() - 0.5) * 80,
+      (Math.random() - 0.5) * 80
+    );
+    mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+    mesh.userData = {
+      rx: (Math.random() - 0.5) * 0.02,
+      ry: (Math.random() - 0.5) * 0.02,
+      rz: (Math.random() - 0.5) * 0.02,
+      vy: (Math.random() - 0.5) * 0.1
+    };
+    group.add(mesh);
+    threeObjects.cubeItems.push(mesh);
+  }
+  
+  threeScene.add(group);
+  threeObjects.cubesGroup = group;
+
+  threeCamera.position.set(0, 0, 60);
+  threeCamera.lookAt(0, 0, 0);
+}
+
+
+function animateThree() {
+  if (!threeRenderer || !currentThreeMode) return;
+  threeAnimId = requestAnimationFrame(animateThree);
+
+  if (currentThreeMode === 'stars') {
+    if (threeObjects.stars) {
+      threeObjects.stars.rotation.y += 0.001;
+      threeObjects.stars.rotation.x += 0.0005;
+    }
+  } 
+  else if (currentThreeMode === 'grid') {
+    if (threeObjects.grid) {
+      threeObjects.grid.position.z += 0.5;
+      if (threeObjects.grid.position.z > 20) {
+        threeObjects.grid.position.z = 0;
+      }
+    }
+  }
+  else if (currentThreeMode === 'shapes') {
+    if (threeObjects.shapesGroup) {
+      threeObjects.shapesGroup.rotation.y += 0.002;
+      threeObjects.shapeItems[0].rotation.x += 0.01;
+      threeObjects.shapeItems[0].rotation.y += 0.01;
+      threeObjects.shapeItems[1].rotation.z -= 0.005;
+      threeObjects.shapeItems[2].rotation.x -= 0.01;
+    }
+  }
+  else if (currentThreeMode === 'wormhole') {
+    if (threeObjects.wormhole) {
+      threeObjects.wormhole.rotation.z += 0.002; 
+      threeObjects.wormhole.position.z += 2.5;   
+      if(threeObjects.wormhole.position.z > 200) {
+        threeObjects.wormhole.position.z = 0;
+      }
+    }
+  }
+  else if (currentThreeMode === 'sea') {
+    if (threeObjects.sea) {
+      threeObjects.seaTime += 0.04;
+      const posAttr = threeObjects.sea.geometry.attributes.position;
+      for(let i=0; i<posAttr.count; i++) {
+         const x = posAttr.getX(i);
+         const y = posAttr.getY(i);
+         const z = Math.sin(x * 0.15 + threeObjects.seaTime) * Math.cos(y * 0.15 + threeObjects.seaTime) * 4;
+         posAttr.setZ(i, z);
+      }
+      posAttr.needsUpdate = true; 
+    }
+  }
+  else if (currentThreeMode === 'city') {
+    if (threeObjects.city) {
+      threeObjects.city.position.z += 0.5;
+      if (threeObjects.city.position.z > 50) {
+        threeObjects.city.position.z = 0;
+      }
+    }
+  }
+  else if (currentThreeMode === 'dna') {
+    if (threeObjects.dna) {
+      threeObjects.dna.rotation.y += 0.01;
+      threeObjects.dna.position.y = Math.sin(Date.now() * 0.001) * 3; 
+    }
+  }
+  else if (currentThreeMode === 'cubes') {
+    if (threeObjects.cubesGroup) {
+      threeObjects.cubesGroup.rotation.y += 0.001;
+      threeObjects.cubesGroup.rotation.x += 0.0005;
+      
+      threeObjects.cubeItems.forEach(cube => {
+        cube.rotation.x += cube.userData.rx;
+        cube.rotation.y += cube.userData.ry;
+        cube.rotation.z += cube.userData.rz;
+        cube.position.y += cube.userData.vy;
+        
+        if(cube.position.y > 40) cube.position.y = -40;
+        if(cube.position.y < -40) cube.position.y = 40;
+      });
+    }
+  }
+
+  threeRenderer.render(threeScene, threeCamera);
+}
+
+function stopThree() {
+  if (threeAnimId) {
+    cancelAnimationFrame(threeAnimId);
+    threeAnimId = null;
+  }
+  currentThreeMode = null;
+}
+
+// ！！！ ユーザーの意思（モード変更）と世界（背景色）を連動させる神のメソッド ！！！
+function handleBackgroundSelection(val) {
+  const bgMediaContainer = document.getElementById("background-container");
+  const threeCont = document.getElementById("three-container");
+  
+  bgMediaContainer.innerHTML = "";
+  bgMediaContainer.style.background = "";
+  
+  is2DActive = false;
+  if (animId2D) {
+    cancelAnimationFrame(animId2D);
+    animId2D = null;
+  }
+  stopThree();
+
+  // 選択された世界観に合わせて、第零層（背景）の色を自動的に塗り替える！
+  applyThemeColors(val);
+
+  if (val.startsWith('2d_')) {
+    canvas.style.display = 'block';
+    threeCont.style.display = 'none';
+    is2DActive = true;
+    init2DUniverse(val.replace('2d_', '')); 
+    draw2D(); 
+  } 
+  else if (val.startsWith('three_')) {
+    canvas.style.display = 'none';
+    threeCont.style.display = 'block';
+    
+    if (!threeRenderer) {
+      initThree();
+    }
+    
+    if (val === 'three_stars') buildStarfield();
+    if (val === 'three_grid') buildCyberGrid();
+    if (val === 'three_shapes') buildGeometricDream();
+    if (val === 'three_wormhole') buildWormhole();
+    if (val === 'three_sea') buildQuantumSea();
+    if (val === 'three_city') buildCyberCity();
+    if (val === 'three_dna') buildNeonDNA();
+    if (val === 'three_cubes') buildFloatingCubes();
+    
+    animateThree(); 
+  }
+}
+
+function handleImageSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById("bgTypeSelect").value = ""; 
+    
+    is2DActive = false;
+    stopThree();
+    canvas.style.display = 'none';
+    document.getElementById("three-container").style.display = 'none';
+    
+    const bgContainer = document.getElementById("background-container");
+    bgContainer.innerHTML = "";
+    bgContainer.style.background = `url('${e.target.result}') no-repeat center center`;
+    bgContainer.style.backgroundSize = "cover";
+    bgContainer.style.backgroundPosition = "center";
+
+    // メディアが設定されたら、背景を漆黒に沈めてメディアを際立たせる
+    applyThemeColors('media');
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleVideoSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const videoURL = URL.createObjectURL(file);
+  document.getElementById("bgTypeSelect").value = ""; 
+  
+  is2DActive = false;
+  stopThree();
+  canvas.style.display = 'none';
+  document.getElementById("three-container").style.display = 'none';
+
+  const bgContainer = document.getElementById("background-container");
+  bgContainer.innerHTML = "";
+  bgContainer.style.background = "";
+
+  const video = document.createElement("video");
+  video.src = videoURL;
+  video.autoplay = true;
+  video.loop = true;
+  video.muted = true;
+  video.playsInline = true;
+  bgContainer.appendChild(video);
+
+  // メディアが設定されたら、背景を漆黒に沈めてメディアを際立たせる
+  applyThemeColors('media');
+}
+
+const keysPressed = { a: false, b: false, c: false };
+window.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === 'a') keysPressed.a = true;
+  if (k === 'b') keysPressed.b = true;
+  if (k === 'c') keysPressed.c = true;
+
+  if (keysPressed.a && keysPressed.b && keysPressed.c) {
+    if (k === 'ArrowUp') {
+      volume = Math.min(1, volume + 0.05);
+      audioEl.volume = volume;
+      showVolume();
+    } else if (k === 'ArrowDown') {
+      volume = Math.max(0, volume - 0.05);
+      audioEl.volume = volume;
+      showVolume();
+    } else {
+      centerTextEl.style.display = 'block';
+      waitingMessageEl.style.display = 'none';
+      reasonContainer.style.display = 'none';
+
+      audioEl.pause();
+      audioEl.currentTime = 0;
+
+      keysPressed.a = false;
+      keysPressed.b = false;
+      keysPressed.c = false;
+    }
+  } else {
+    if (e.key === 'ArrowUp') {
+      volume = Math.min(1, volume + 0.05);
+      audioEl.volume = volume;
+      showVolume();
+    } else if (e.key === 'ArrowDown') {
+      volume = Math.max(0, volume - 0.05);
+      audioEl.volume = volume;
+      showVolume();
+    }
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === 'a') keysPressed.a = false;
+  if (k === 'b') keysPressed.b = false;
+  if (k === 'c') keysPressed.c = false;
+});
+
+document.getElementById('three-container').style.display = 'none';
+
+window.addEventListener('resize', () => {
+  if (is2DActive) {
+    init2DUniverse(current2DMode); 
+  }
+});
+
+const panelHandle = document.querySelector('.panel-handle');
+const bgControls = document.getElementById('background-controls');
+
+panelHandle.addEventListener('click', () => {
+  bgControls.classList.toggle('open');
+});
+
+init2DUniverse('circles');
+draw2D();
+
+</script>
+</body>
+</html>
