@@ -97,6 +97,10 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
   
+  #waiting-message:empty {
+    display: none !important;
+  }
+  
   #reason-container {
     position: absolute;
     bottom: 40px;
@@ -725,6 +729,10 @@
         <option value="2d_matrix">マトリックスの雨 (Digital Rain)</option>
         <option value="2d_network">ニューラルネットワーク (Network)</option>
         <option value="2d_waves">サイバーオーロラ (Sine Waves)</option>
+        <option value="2d_aurora">極光カーテン (Aurora Borealis)</option>
+        <option value="2d_rainbow">虹色の波動 (Rainbow Waves)</option>
+        <option value="2d_stars">星空の瞬き (Twinkling Stars)</option>
+        <option value="2d_particles">浮遊粒子 (Floating Particles)</option>
       </optgroup>
       <optgroup label="3D Animation (立体宇宙)">
         <option value="three_stars">星屑の深淵 (3D Starfield)</option>
@@ -735,6 +743,10 @@
         <option value="three_city">無限の電脳都市 (3D Cyber City)</option>
         <option value="three_dna">生命の樹 (3D Neon DNA)</option>
         <option value="three_cubes">浮遊する情報体 (3D Data Cubes)</option>
+        <option value="three_portal">異次元ポータル (3D Portal)</option>
+        <option value="three_nebula">星雲の渦 (3D Nebula)</option>
+        <option value="three_crystal">結晶洞窟 (3D Crystal Cave)</option>
+        <option value="three_tunnel">光のトンネル (3D Light Tunnel)</option>
       </optgroup>
     </select>
     
@@ -778,20 +790,28 @@ mediaDimmer.addEventListener('input', (e) => {
 
 // 🌟 モードごとの「最適テーマカラー」を定義した神の辞典
 const themeColors = {
-  '2d_circles': { c1: '#0a0a0a', c2: '#16213e' },
-  '2d_matrix':  { c1: '#001100', c2: '#003300' },
-  '2d_network': { c1: '#000511', c2: '#001a33' },
-  '2d_waves':   { c1: '#0a001a', c2: '#220033' },
-  'three_stars':{ c1: '#000000', c2: '#050510' },
-  'three_grid': { c1: '#050015', c2: '#1a0033' },
-  'three_shapes':{ c1: '#111111', c2: '#2a2a2a' },
+  '2d_circles':   { c1: '#0a0a0a', c2: '#16213e' },
+  '2d_matrix':    { c1: '#001100', c2: '#003300' },
+  '2d_network':   { c1: '#000511', c2: '#001a33' },
+  '2d_waves':     { c1: '#0a001a', c2: '#220033' },
+  '2d_aurora':    { c1: '#001a00', c2: '#003322' },
+  '2d_rainbow':   { c1: '#1a001a', c2: '#330033' },
+  '2d_stars':     { c1: '#000011', c2: '#000022' },
+  '2d_particles': { c1: '#0a0a0a', c2: '#1a1a1a' },
+  'three_stars':  { c1: '#000000', c2: '#050510' },
+  'three_grid':   { c1: '#050015', c2: '#1a0033' },
+  'three_shapes': { c1: '#111111', c2: '#2a2a2a' },
   'three_wormhole':{ c1: '#001122', c2: '#003344' },
-  'three_sea':  { c1: '#020005', c2: '#220011' },
-  'three_city': { c1: '#000000', c2: '#001515' },
-  'three_dna':  { c1: '#050011', c2: '#1a0022' },
-  'three_cubes':{ c1: '#050510', c2: '#002222' },
+  'three_sea':    { c1: '#020005', c2: '#220011' },
+  'three_city':   { c1: '#000000', c2: '#001515' },
+  'three_dna':    { c1: '#050011', c2: '#1a0022' },
+  'three_cubes':  { c1: '#050510', c2: '#002222' },
+  'three_portal': { c1: '#110000', c2: '#220011' },
+  'three_nebula': { c1: '#0a001a', c2: '#1a0033' },
+  'three_crystal':{ c1: '#001a1a', c2: '#003333' },
+  'three_tunnel': { c1: '#1a1a00', c2: '#333300' },
   // 画像や動画が設定された場合は、主役を引き立てるため背景を完全な漆黒に沈める
-  'media':      { c1: '#000000', c2: '#000000' } 
+  'media':        { c1: '#000000', c2: '#000000' } 
 };
 
 // 選択された次元に応じて、ベースカラーを自動的に上書きする魔法
@@ -870,6 +890,41 @@ function init2DUniverse(mode = 'circles') {
   }
   else if (mode === 'waves') {
     twoData.time = 0;
+  }
+  else if (mode === 'aurora') {
+    twoData.waves = [];
+    for(let i=0; i<5; i++) {
+      twoData.waves.push({ offset: Math.random() * Math.PI * 2, speed: 0.01 + Math.random() * 0.02, amp: 30 + Math.random() * 50 });
+    }
+    twoData.time = 0;
+  }
+  else if (mode === 'rainbow') {
+    twoData.time = 0;
+  }
+  else if (mode === 'stars') {
+    twoData.stars = [];
+    for(let i=0; i<150; i++) {
+      twoData.stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 2 + 0.5,
+        alpha: Math.random(),
+        twinkleSpeed: 0.02 + Math.random() * 0.05
+      });
+    }
+  }
+  else if (mode === 'particles') {
+    twoData.particles = [];
+    for(let i=0; i<80; i++) {
+      twoData.particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5 - 0.3,
+        r: Math.random() * 3 + 1,
+        alpha: Math.random() * 0.5 + 0.3
+      });
+    }
   }
 }
 
@@ -968,6 +1023,88 @@ function draw2D() {
       ctx.lineWidth = 4;
       ctx.stroke();
     }
+  }
+  else if (current2DMode === 'aurora') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    twoData.time += 0.015;
+    
+    for(let i = 0; i < twoData.waves.length; i++) {
+      let wave = twoData.waves[i];
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+      
+      for(let x = 0; x <= canvas.width; x += 10) {
+        let y = Math.sin(x * 0.008 + twoData.time * (i+1) + wave.offset) * wave.amp;
+        ctx.lineTo(x, canvas.height / 2 + y);
+      }
+      
+      ctx.strokeStyle = `hsla(${120 + i * 40}, 80%, 50%, 0.4)`;
+      ctx.lineWidth = 30;
+      ctx.stroke();
+    }
+  }
+  else if (current2DMode === 'rainbow') {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    twoData.time += 0.03;
+    
+    for(let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      for(let x = 0; x <= canvas.width; x += 20) {
+        let y = Math.sin(x * 0.01 + twoData.time + i * Math.PI/3) * 50 + canvas.height/2;
+        if(x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `hsl(${i * 60 + twoData.time * 50}, 100%, 50%)`;
+      ctx.lineWidth = 8;
+      ctx.stroke();
+    }
+  }
+  else if (current2DMode === 'stars') {
+    ctx.fillStyle = 'rgba(0, 0, 5, 0.2)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    for(let i=0; i<twoData.stars.length; i++) {
+      let s = twoData.stars[i];
+      s.alpha += Math.sin(twoData.time * 50 * s.twinkleSpeed) * 0.01;
+      if(s.alpha < 0.1) s.alpha = 0.1;
+      if(s.alpha > 1) s.alpha = 1;
+      
+      ctx.globalAlpha = s.alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    twoData.time += 0.016;
+  }
+  else if (current2DMode === 'particles') {
+    ctx.fillStyle = 'rgba(10, 10, 10, 0.15)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    for(let i=0; i<twoData.particles.length; i++) {
+      let p = twoData.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      
+      if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+      if(p.y < 0) p.vy *= -1;
+      if(p.y > canvas.height) {
+        p.y = canvas.height;
+        p.vy *= -0.5;
+      }
+      
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = `hsl(${200 + Math.random() * 40}, 80%, 70%)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   animId2D = requestAnimationFrame(draw2D);
@@ -1804,6 +1941,114 @@ function buildFloatingCubes() {
   threeCamera.lookAt(0, 0, 0);
 }
 
+function buildPortal() {
+  currentThreeMode = 'portal';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x110000, 0.02);
+  
+  const group = new THREE.Group();
+  const ringGeo = new THREE.TorusGeometry(1, 0.2, 16, 100);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff0066, wireframe: true });
+  
+  for(let i=0; i<20; i++) {
+    const ring = new THREE.Mesh(ringGeo, mat);
+    ring.scale.setScalar(1 + i * 0.3);
+    ring.position.z = -i * 2;
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+  }
+  
+  threeScene.add(group);
+  threeObjects.portal = group;
+  
+  threeCamera.position.set(0, 0, 10);
+  threeCamera.lookAt(0, 0, -50);
+}
+
+function buildNebula() {
+  currentThreeMode = 'nebula';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x0a001a, 0.01);
+  
+  const particleCount = 5000;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  const colors = new Float32Array(particleCount * 3);
+  
+  for(let i=0; i<particleCount; i++) {
+    positions[i*3] = (Math.random() - 0.5) * 200;
+    positions[i*3+1] = (Math.random() - 0.5) * 200;
+    positions[i*3+2] = (Math.random() - 0.5) * 200;
+    
+    colors[i*3] = 0.5 + Math.random() * 0.5;
+    colors[i*3+1] = Math.random() * 0.3;
+    colors[i*3+2] = 0.8 + Math.random() * 0.2;
+  }
+  
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  
+  const mat = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.6 });
+  const points = new THREE.Points(geo, mat);
+  threeScene.add(points);
+  threeObjects.nebula = points;
+  
+  threeCamera.position.set(0, 0, 80);
+  threeCamera.lookAt(0, 0, 0);
+}
+
+function buildCrystalCave() {
+  currentThreeMode = 'crystal';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x001a1a, 0.015);
+  
+  const group = new THREE.Group();
+  const geo = new THREE.OctahedronGeometry(1, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x00ffff, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.8 });
+  
+  for(let i=0; i<80; i++) {
+    const crystal = new THREE.Mesh(geo, mat);
+    crystal.position.set(
+      (Math.random() - 0.5) * 100,
+      (Math.random() - 0.5) * 100,
+      (Math.random() - 0.5) * 100
+    );
+    crystal.scale.setScalar(Math.random() * 3 + 1);
+    crystal.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+    group.add(crystal);
+  }
+  
+  threeScene.add(group);
+  threeObjects.crystals = group;
+  
+  threeCamera.position.set(0, 0, 60);
+  threeCamera.lookAt(0, 0, 0);
+}
+
+function buildLightTunnel() {
+  currentThreeMode = 'tunnel';
+  threeScene.clear();
+  threeScene.fog = new THREE.FogExp2(0x1a1a00, 0.02);
+  
+  const group = new THREE.Group();
+  const segments = 50;
+  
+  for(let i=0; i<segments; i++) {
+    const ringGeo = new THREE.RingGeometry(5 + i * 0.5, 6 + i * 0.5, 32);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+    const ring = new THREE.Mesh(ringGeo, mat);
+    ring.position.z = -i * 3;
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+  }
+  
+  threeScene.add(group);
+  threeObjects.tunnel = group;
+  
+  threeCamera.position.set(0, 0, 10);
+  threeCamera.lookAt(0, 0, -100);
+}
+
 
 function animateThree() {
   if (!threeRenderer || !currentThreeMode) return;
@@ -1884,6 +2129,36 @@ function animateThree() {
       });
     }
   }
+  else if (currentThreeMode === 'portal') {
+    if (threeObjects.portal) {
+      threeObjects.portal.rotation.z += 0.02;
+      for(let i=0; i<threeObjects.portal.children.length; i++) {
+        threeObjects.portal.children[i].scale.setScalar(1 + i * 0.3 + Math.sin(Date.now() * 0.002 + i) * 0.2);
+      }
+    }
+  }
+  else if (currentThreeMode === 'nebula') {
+    if (threeObjects.nebula) {
+      threeObjects.nebula.rotation.y += 0.0005;
+      threeObjects.nebula.rotation.z += 0.0003;
+    }
+  }
+  else if (currentThreeMode === 'crystal') {
+    if (threeObjects.crystals) {
+      threeObjects.crystals.rotation.y += 0.002;
+    }
+  }
+  else if (currentThreeMode === 'tunnel') {
+    if (threeObjects.tunnel) {
+      for(let i=0; i<threeObjects.tunnel.children.length; i++) {
+        let ring = threeObjects.tunnel.children[i];
+        ring.position.z += 2;
+        if(ring.position.z > 50) {
+          ring.position.z = -100;
+        }
+      }
+    }
+  }
 
   threeRenderer.render(threeScene, threeCamera);
 }
@@ -1937,6 +2212,10 @@ function handleBackgroundSelection(val) {
     if (val === 'three_city') buildCyberCity();
     if (val === 'three_dna') buildNeonDNA();
     if (val === 'three_cubes') buildFloatingCubes();
+    if (val === 'three_portal') buildPortal();
+    if (val === 'three_nebula') buildNebula();
+    if (val === 'three_crystal') buildCrystalCave();
+    if (val === 'three_tunnel') buildLightTunnel();
     
     animateThree(); 
   }
